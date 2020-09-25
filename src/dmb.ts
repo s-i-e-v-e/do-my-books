@@ -16,7 +16,7 @@
  **/
 import {println, read_text_file} from "./common.ts";
 import {parse} from "./parser/parse.ts";
-import {do_balances} from "./tools/report.ts";
+import {do_balances, do_trial_balance} from "./tools/report.ts";
 
 function version() {
 	println('dmb 0.1');
@@ -31,16 +31,26 @@ function help() {
 	println('help,    --help,          Display this information.');
 	println('version, --version        Display version information.');
 	println('balances file             List ledger balances');
+	println('tb type file              Print trial balance. type can be one of:');
+	println('                          o (opening)');
+	println('                          c (closing)');
+	println('                          oc (opening + closing)');
+	println('                          otc (opening + transactions + closing)');
 }
 
 function balances(file: string) {
 	do_balances(parse(file, read_text_file));
 }
 
+function trial_balance(type: string, file: string) {
+	do_trial_balance(type, parse(file, read_text_file));
+}
+
 export function main(args: string[]) {
 	const cmd = args[0];
 	switch(cmd) {
 		case "balances": balances(args[1]); break;
+		case "tb": trial_balance(args[1], args[2]); break;
 		case "--version":
 		case "version": version(); break;
 		case "--help":

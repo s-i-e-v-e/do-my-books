@@ -15,20 +15,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
 import {
-	Posting,
+	Entry,
 	Ledger,
 	JournalEntry,
-	TYPE_CAPITAL,
-	TYPE_LIABILITIES,
-	TYPE_INCOMES
+	entry,
+	fix_entry,
+	fix_account
 } from './ast.ts'
 
 export function total(xs: number[]) {
 	return xs.reduce((a, b) => a + b, 0);
-}
-
-function amount(type: string, n: number) {
-	return (type === TYPE_CAPITAL || type === TYPE_LIABILITIES || type === TYPE_INCOMES) ? -n : n;
 }
 
 function resolve_account(lg: Ledger, name: string) {
@@ -39,70 +35,73 @@ function resolve_account(lg: Ledger, name: string) {
 
 function check_entry(lg: Ledger, e: JournalEntry, map: StringMap) {
 	const xs = e.xs;
-	const last = xs.filter(x => x.account[0] === '@')[0];
-	let sum;
-	if (last) {
-		const name = last.account;
-		last.account = name[0] === '@' ? name.substring(1) : name;
-
-		sum = total(xs.map(x => amount(map.get(x.account)!, x.amount)));
-		if (sum) {
-			last.amount = name[0] === '@' ? amount(map.get(last.account)!, -sum) : last.amount;
-			sum += name[0] === '@' ? last.amount : 0;
-		}
+	const ys = xs.filter(x => x.debit === x.credit);
+	if (ys.length > 1) throw new Error();
+	const unbalanced = ys[0];
+	let sum = total(xs.map(x => x.debit - x.credit));
+	if (unbalanced) {
+		unbalanced.debit = -sum;
+		unbalanced.credit = -sum;
+		fix_entry(map.get(unbalanced.account)!, unbalanced);
+		sum += unbalanced.debit - unbalanced.credit;
 	}
-	else {
-		sum = total(xs.map(x => amount(map.get(x.account)!, x.amount)));
-	}
-	xs.forEach(x => resolve_account(lg, x.account));
 	if (sum) throw new Error(`Unbalanced entry on ${e.date}. Diff: ${sum}`);
 }
 
 function post_entries(lg: Ledger, map: StringMap) {
-	lg.unposted.forEach(e => {
-		check_entry(lg, e, map);
+	lg.unposted.forEach(je => {
+		// check accounts
+		const accounts = je.xs.map(e => resolve_account(lg, e.account));
 
-		const ys: Posting[] = [];
-		e.xs.forEach(x => {
+		// fix entries
+		je.xs.forEach(e => fix_entry(map.get(e.account)!, e));
+
+		check_entry(lg, je, map);
+
+		const ys: Entry[] = [];
+		je.xs.forEach(e => {
 			// combine, if same account appears multiple times in an entry
-			const y = ys.filter(y => y.account === x.account)[0];
+			const y = ys.filter(y => y.account === e.account)[0];
 			if (y) {
-				y.amount += x.amount;
+				y.debit += e.debit;
+				y.credit += e.credit;
 			}
 			else {
-				ys.push(x);
+				ys.push(e);
+
+				// post entry
+				const a = resolve_account(lg, e.account);
+				a.xs.push({date: je.date, xs: ys});
 			}
 		});
-
-		ys
-			.map(x => resolve_account(lg, x.account))
-			.forEach(x => x.xs.push({date: e.date, xs: ys}));
 	});
 }
 
 function check_opening_balances(lg: Ledger) {
-	const sum = total(lg.accounts.map(x => amount(x.type, x.opening)));
+	const sum = total(lg.accounts.map(x => x.opening_debit - x.opening_credit));
 	if (sum) throw new Error(`opening balance mismatch: ${sum}`);
 }
 
 function check_closing_balances(lg: Ledger) {
-	const ys = lg.accounts.map(x => {
+	const ys: Entry[] = lg.accounts.map(x => {
 		const xs = x.xs
 			.map(y => y.xs)
 			.reduce((a, b) => a.concat(b), [])
 			.filter(y => y.account === x.name);
-		const closing = x.opening + total(xs.map(y => y.amount));
-		return {name: x.name, opening: closing, type: x.type, xs: []};
+		return entry(x.name, x.opening_debit + total(xs.map(y => y.debit)), x.opening_credit + total(xs.map(y => y.credit)));
 	});
 
-	const sum = total(ys.map(x => amount(x.type, x.opening)));
+	const sum = total(ys.map(x => x.debit - x.credit));
 	if (sum) throw new Error(`closing balance mismatch: ${sum}`);
 }
 
 type StringMap = Map<string, string>;
 export function check(lg: Ledger) {
 	const map = new Map<string, string>();
-	lg.accounts.forEach(x => map.set(x.name, x.type));
+	lg.accounts.forEach(x => {
+		map.set(x.name, x.type);
+		fix_account(x);
+	});
 	check_opening_balances(lg);
 	post_entries(lg, map);
 	check_closing_balances(lg);

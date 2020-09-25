@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
-import {cur_s2n, println} from "../common.ts";
+import {cur_s2n, log_info, println} from "../common.ts";
 import {
 	Date,
 	OpenLedger,
@@ -32,7 +32,7 @@ import {
 	IncludeJournal,
 	UseAccount,
 	NODE_USE_ACCOUNT,
-	Posting,
+	Entry,
 	cs_loc,
 
 } from "./ast.ts";
@@ -48,12 +48,13 @@ function parse_date(cs: CharStream): Date {
 	};
 }
 
-function parse_postings(cs: CharStream): Posting[] {
-	const xs = [];
+function parse_entries(cs: CharStream): Entry[] {
+	const xs: Entry[] = [];
 	while (!cs.eof) {
-		const a = read_number(cs);
-		const b = read_text(cs);
-		xs.push({amount: cur_s2n(a.lexeme), account: b.lexeme})
+		const a = cur_s2n(read_number(cs).lexeme);
+		const b = read_text(cs).lexeme;
+		// determine debit OR credit amount in checking phase
+		xs.push({debit: a, credit: a, account: b});
 
 		skip_comment(cs);
 		if (cs_peek(cs) === '\n') {
@@ -69,7 +70,7 @@ function parse_postings(cs: CharStream): Posting[] {
 
 function parse_open_ledger(cs: CharStream): OpenLedger {
 	const loc = cs_loc(cs, cs.index);
-	const xs = parse_postings(cs);
+	const xs = parse_entries(cs);
 	return {type: NODE_OPEN_LEDGER, loc: loc, xs: xs};
 }
 
@@ -126,7 +127,8 @@ function build_accounts(x: OpenLedger, lg: Ledger) {
 		const a: Account = {
 			name: p.account,
 			type: p.account.substring(0, p.account.indexOf('/')).toUpperCase(),
-			opening: p.amount,
+			opening_debit: p.debit,
+			opening_credit: p.credit,
 			xs: [],
 		};
 		lg.accounts.push(a);
@@ -134,8 +136,9 @@ function build_accounts(x: OpenLedger, lg: Ledger) {
 }
 
 function parse_journal_entry(cs: CharStream, lg: Ledger, current: CurrentState) {
-	const xs = parse_postings(cs);
-	if (current.account) xs.push({account: '@'+current.account, amount: 0});
+	const xs = parse_entries(cs);
+	// determine balancing amount in checking phase
+	if (current.account) xs.push({account: current.account, debit: 0, credit: 0});
 	const x = {date: current.date,  xs: xs};
 	const last = lg.unposted[lg.unposted.length-1];
 	if (last && last.date > current.date) throw new Error(`Postings not in sequence: ${last.date} > ${current.date}}`);
@@ -152,7 +155,7 @@ function resolve_path(old_file: string, new_file: string) {
 
 export function parse(file: string, fn: (file: string) => string): Ledger {
 	const do_parse = (file: string, lg: Ledger) => {
-		println(`Parsing: ${file}`);
+		log_info(`Parsing: ${file}`);
 		const cs = cs_new(fn(file));
 
 		let current = {
@@ -186,6 +189,7 @@ export function parse(file: string, fn: (file: string) => string): Ledger {
 					case NODE_INCLUDE_JOURNAL: {
 						const lgx = {
 							start_date: lg.start_date,
+							end_date: lg.end_date,
 							accounts: lg.accounts,
 							unposted: [],
 						};
@@ -208,10 +212,13 @@ export function parse(file: string, fn: (file: string) => string): Ledger {
 
 	const lg: Ledger = {
 		start_date: '',
+		end_date: '',
 		accounts: [],
 		unposted: [],
 	};
 	do_parse(file, lg);
 	lg.unposted = lg.unposted.sort((a, b) => a.date <= b.date ? -1 : 1);
+	const last = lg.unposted[lg.unposted.length-1];
+	lg.end_date = last ? last.date : lg.end_date;
 	return check(lg);
 }

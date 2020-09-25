@@ -48,6 +48,11 @@ export function println(x: string) {
 	console.log(x);
 }
 
+export let log_level = 0;
+export function log_info(x: string) {
+	if (log_level > 0) println(x);
+}
+
 export function read_text_file(file: string) {
 	return Deno.readTextFileSync(file).trim().replaceAll(/\r?\n/g, '\n').replaceAll(/\t/g, ' ');
 }

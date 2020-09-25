@@ -42,7 +42,7 @@ export interface Date extends Node {
 }
 
 export interface OpenLedger extends Node {
-	xs: Posting[],
+	xs: Entry[],
 }
 
 export interface IncludeFile extends Node {
@@ -58,33 +58,85 @@ export interface UseAccount extends Node {
 }
 
 //
-export const TYPE_CAPITAL = "CAPITAL";
-export const TYPE_ASSETS = "ASSETS";
-export const TYPE_LIABILITIES = "LIABILITIES";
-export const TYPE_INCOMES = "INCOMES";
-export const TYPE_EXPENSES = "EXPENSES";
+const TYPE_CAPITAL = "CAPITAL";
+const TYPE_ASSETS = "ASSETS";
+const TYPE_LIABILITIES = "LIABILITIES";
+const TYPE_INCOMES = "INCOMES";
+const TYPE_EXPENSES = "EXPENSES";
 
-export interface Posting {
+export interface Entry {
 	account: string,
-	amount: number,
+	debit: number,
+	credit: number,
 }
 
 export interface JournalEntry {
 	date: string,
-	xs: Posting[], /* sum of postings should be 0 */
+	xs: Entry[], /* sum of entries should be 0 */
 }
 
 export interface Account {
 	name: string,
 	type: string,
-	opening: number,
+	opening_debit: number,
+	opening_credit: number,
 	xs: JournalEntry[],
 }
 
 export interface Ledger {
 	start_date: string,
+	end_date: string,
 	accounts: Account[],
 	unposted: JournalEntry[],
+}
+
+export function account(name: string, type: string, d: number, c: number): Account {
+	return {name: name, type: type, opening_debit: d, opening_credit: c, xs: []};
+}
+
+export function entry(name: string, d: number, c: number): Entry {
+	return {account: name, debit: d, credit: c};
+}
+
+export function fix_account(x: Account) {
+	const e = entry(x.name, x.opening_debit, x.opening_credit);
+	fix_entry(x.type, e);
+	x.opening_debit = e.debit;
+	x.opening_credit = e.credit;
+	return x;
+}
+
+export function fix_entry(type: string, e: Entry) {
+	const n = e.debit;
+	switch (type) {
+		case TYPE_ASSETS:
+		case TYPE_EXPENSES: {
+			if (n < 0) {
+				e.debit = 0;
+				e.credit = -n;
+			} else {
+				e.debit = n;
+				e.credit = 0;
+			}
+			break;
+		}
+		case TYPE_CAPITAL:
+		case TYPE_LIABILITIES:
+		case TYPE_INCOMES: {
+			if (n < 0) {
+				e.debit = -n;
+				e.credit = 0;
+
+			} else {
+				e.debit = 0;
+				e.credit = n;
+			}
+			break;
+		}
+		default:
+			throw new Error();
+	}
+	return e;
 }
 
 export function cs_new(x: string) {
