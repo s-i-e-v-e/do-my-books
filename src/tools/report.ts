@@ -18,7 +18,6 @@ import {
 	account,
 	entry,
 	Entry,
-	fix_entry,
 	Ledger,
 } from "../parser/ast.ts";
 import {cur_n2s} from "../common.ts";
@@ -59,10 +58,12 @@ export function do_trial_balance(type: string,lg: Ledger) {
 		return ys;
 	};
 
-	const get_balances = (lg: Ledger) => {
-		let xs = lg.accounts
+	const get_balances = (lg: Ledger, only_opening: boolean = false) => {
+		const xs = lg.accounts
 			.sort((a, b) => a.name <= b.name ? -1 : 1)
-			.map(x => account(x.name, x.type, x.opening_debit, x.opening_credit));
+			.map(x => entry(x.name, x.opening_debit, x.opening_credit));
+
+		if (only_opening) return [xs, [], []];
 
 		// transactions
 		const ys = lg.accounts.map(x => {
@@ -78,15 +79,13 @@ export function do_trial_balance(type: string,lg: Ledger) {
 		});
 
 		// closing balances
-		let zs = xs.map((x, i) => { const n = x.opening_debit + ys[i].debit - x.opening_credit - ys[i].credit; return entry(x.name, n > 0 ? n : 0, n <= 0 ? -n : 0); });
-		return [xs.map(x => entry(x.name, x.opening_debit, x.opening_credit)), ys, zs];
+		let zs = xs.map((x, i) => { const n = x.debit + ys[i].debit - x.credit - ys[i].credit; return entry(x.account, n > 0 ? n : 0, n <= 0 ? -n : 0); });
+		return [xs, ys, zs];
 	};
 
 	switch (type) {
 		case 'o': {
-			let xs = lg.accounts
-				.sort((a, b) => a.name <= b.name ? -1 : 1)
-				.map(x => entry(x.name, x.opening_debit, x.opening_credit));
+			const [xs,,] = get_balances(lg, true);
 			console.log('Trial Balance\t\t');
 			console.log(`Account\t${lg.start_date}\t`);
 			console.log(`\tDebit\tCredit`);

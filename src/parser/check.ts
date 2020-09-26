@@ -51,27 +51,19 @@ function check_entry(lg: Ledger, e: JournalEntry, map: StringMap) {
 function post_entries(lg: Ledger, map: StringMap) {
 	lg.unposted.forEach(je => {
 		// check accounts
-		const accounts = je.xs.map(e => resolve_account(lg, e.account));
+		je.xs.forEach(e => resolve_account(lg, e.account));
 
 		// fix entries
 		je.xs.forEach(e => fix_entry(map.get(e.account)!, e));
 
 		check_entry(lg, je, map);
 
-		const ys: Entry[] = [];
+		const set = new Set();
 		je.xs.forEach(e => {
-			// combine, if same account appears multiple times in an entry
-			const y = ys.filter(y => y.account === e.account)[0];
-			if (y) {
-				y.debit += e.debit;
-				y.credit += e.credit;
-			}
-			else {
-				ys.push(e);
-
-				// post entry
-				const a = resolve_account(lg, e.account);
-				a.xs.push({date: je.date, xs: ys});
+			const a = resolve_account(lg, e.account);
+			if (!set.has(a.name)) {
+				a.xs.push(je);
+				set.add(a.name);
 			}
 		});
 	});

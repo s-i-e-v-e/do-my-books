@@ -34,7 +34,7 @@ import {
 	NODE_USE_ACCOUNT,
 	Entry,
 	cs_loc,
-
+	JournalEntry,
 } from "./ast.ts";
 import {read_date, read_directive, read_number, read_string, read_text, skip_comment, skip_ws} from "./lex.ts";
 import {check} from "./check.ts";
@@ -136,13 +136,20 @@ function build_accounts(x: OpenLedger, lg: Ledger) {
 }
 
 function parse_journal_entry(cs: CharStream, lg: Ledger, current: CurrentState) {
+	const add_je = (x: JournalEntry) => {
+		const last = lg.unposted[lg.unposted.length-1];
+		if (last && last.date > current.date) throw new Error(`Postings not in sequence: ${last.date} > ${current.date}}`);
+		lg.unposted.push(x);
+	};
+
 	const xs = parse_entries(cs);
 	// determine balancing amount in checking phase
-	if (current.account) xs.push({account: current.account, debit: 0, credit: 0});
-	const x = {date: current.date,  xs: xs};
-	const last = lg.unposted[lg.unposted.length-1];
-	if (last && last.date > current.date) throw new Error(`Postings not in sequence: ${last.date} > ${current.date}}`);
-	lg.unposted.push(x);
+	if (current.account) {
+		xs.forEach(e => add_je({date: current.date, xs: [e, {account: current.account, debit: 0, credit: 0}]}));
+	}
+	else {
+		add_je({date: current.date, xs: xs});
+	}
 	current.date = '';
 }
 
