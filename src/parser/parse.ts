@@ -14,16 +14,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
-import {cur_s2n, log_info, println} from "../common.ts";
+import {cur_s2n, log_info} from "../common.ts";
 import {
 	Date,
 	OpenLedger,
 	Account,
 	Ledger,
-	CharStream,
-	cs_new,
-	cs_next,
-	cs_peek,
 	NODE_DATE,
 	NODE_OPEN_LEDGER,
 	NODE_INCLUDE_FILE,
@@ -33,9 +29,9 @@ import {
 	UseAccount,
 	NODE_USE_ACCOUNT,
 	Entry,
-	cs_loc,
 	JournalEntry,
 } from "./ast.ts";
+import {CharStream, cs_peek, cs_next, cs_loc, cs_new} from './cs.ts';
 import {read_date, read_directive, read_number, read_string, read_text, skip_comment, skip_ws} from "./lex.ts";
 import {check} from "./check.ts";
 

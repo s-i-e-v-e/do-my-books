@@ -14,7 +14,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
-import {CharStream, Location, cs_peek, cs_next, cs_loc} from './ast.ts';
+import {Location} from './ast.ts';
+import {CharStream, cs_peek, cs_next, cs_loc} from './cs.ts';
 
 export const DIRECTIVE = "DIRECTIVE";
 export const DATE = "DATE";

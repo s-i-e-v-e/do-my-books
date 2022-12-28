@@ -14,13 +14,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
-export interface CharStream {
-	x: string,
-	index: number,
-	line_indexes: number[],
-	eof: boolean,
-}
-
 export interface Location {
 	row: number,
 	col: number,
@@ -137,46 +130,4 @@ export function fix_entry(type: string, e: Entry) {
 			throw new Error();
 	}
 	return e;
-}
-
-export function cs_new(x: string) {
-	x =	x.replaceAll(/\t/g, ' ');
-	x =	x.replaceAll(/[ ]*\n[ ]+\n[ ]*/g, '\n\n');
-
-	const cs: CharStream = {
-		x: x,
-		index: 0,
-		line_indexes: [],
-		eof: false,
-	};
-	cs.line_indexes.push(cs.index);
-	return cs;
-}
-
-export function cs_peek(cs: CharStream) {
-	return cs.x[cs.index];
-}
-
-export function cs_next(cs: CharStream) {
-	const x = cs_peek(cs);
-	cs.index += 1;
-	cs.eof = cs.index >= cs.x.length;
-	if (x === '\n') cs.line_indexes.push(cs.index-1);
-	return x;
-}
-
-export function cs_loc(cs: CharStream, index: number) {
-	let idx = cs.line_indexes.length-1;
-	for (let i = 0; i < cs.line_indexes.length; i++) {
-		const x = cs.line_indexes[i];
-		if (x > index) {
-			idx = i-1;
-			break;
-		}
-	}
-	const n = cs.line_indexes[idx];
-	return {
-		row: idx,
-		col: index - n,
-	};
 }
