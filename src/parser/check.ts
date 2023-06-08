@@ -17,10 +17,7 @@
 import {
 	Entry,
 	Ledger,
-	JournalEntry,
 	entry,
-	fix_entry,
-	fix_account
 } from './ast.ts'
 
 export function total(xs: number[]) {
@@ -33,30 +30,13 @@ function resolve_account(lg: Ledger, name: string) {
 	return x;
 }
 
-function check_entry(lg: Ledger, e: JournalEntry, map: StringMap) {
-	const xs = e.xs;
-	const ys = xs.filter(x => x.debit === x.credit);
-	if (ys.length > 1) throw new Error();
-	const unbalanced = ys[0];
-	let sum = total(xs.map(x => x.debit - x.credit));
-	if (unbalanced) {
-		unbalanced.debit = -sum;
-		unbalanced.credit = -sum;
-		fix_entry(map.get(unbalanced.account)!, unbalanced);
-		sum += unbalanced.debit - unbalanced.credit;
-	}
-	if (sum) throw new Error(`Unbalanced entry on ${e.date}. Diff: ${sum}`);
-}
-
 function post_entries(lg: Ledger, map: StringMap) {
 	lg.unposted.forEach(je => {
 		// check accounts
 		je.xs.forEach(e => resolve_account(lg, e.account));
 
-		// fix entries
-		je.xs.forEach(e => fix_entry(map.get(e.account)!, e));
-
-		check_entry(lg, je, map);
+		const sum = total(je.xs.map(x => x.value));
+		if (sum) throw new Error(`Unbalanced entry on ${je.date}. Diff: ${sum}`);
 
 		const set = new Set();
 		je.xs.forEach(e => {
@@ -70,7 +50,7 @@ function post_entries(lg: Ledger, map: StringMap) {
 }
 
 function check_opening_balances(lg: Ledger) {
-	const sum = total(lg.accounts.map(x => x.opening_debit - x.opening_credit));
+	const sum = total(lg.accounts.map(x => x.amount_type === "D" ? x.balance : -x.balance));
 	if (sum) throw new Error(`opening balance mismatch: ${sum}`);
 }
 
@@ -80,20 +60,18 @@ function check_closing_balances(lg: Ledger) {
 			.map(y => y.xs)
 			.reduce((a, b) => a.concat(b), [])
 			.filter(y => y.account === x.name);
-		return entry(x.name, x.opening_debit + total(xs.map(y => y.debit)), x.opening_credit + total(xs.map(y => y.credit)));
+
+		return entry(x.name, x.value + total(xs.map(y => y.value)), "D");
 	});
 
-	const sum = total(ys.map(x => x.debit - x.credit));
+	const sum = total(ys.map(x => x.amount));
 	if (sum) throw new Error(`closing balance mismatch: ${sum}`);
 }
 
 type StringMap = Map<string, string>;
 export function check(lg: Ledger) {
 	const map = new Map<string, string>();
-	lg.accounts.forEach(x => {
-		map.set(x.name, x.type);
-		fix_account(x);
-	});
+	lg.accounts.forEach(x => map.set(x.name, x.type));
 	check_opening_balances(lg);
 	post_entries(lg, map);
 	check_closing_balances(lg);

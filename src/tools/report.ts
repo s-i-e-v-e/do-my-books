@@ -14,19 +14,33 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
+
 import {
-	account,
-	entry,
-	Entry,
 	Ledger,
 } from "../parser/ast.ts";
 import {cur_n2s} from "../common.ts";
 import {total} from "../parser/check.ts";
 
+interface BalanceEntry {
+	account: string,
+	debit: number,
+	credit: number,
+	value: number,
+}
+
+function balance_entry(account: string, debit: number, credit: number) {
+	return {
+		account: account,
+		debit: debit,
+		credit: credit,
+		value: debit - credit,
+	};
+}
+
 export function do_balances(lg: Ledger) {
 	const xs = lg.accounts
 		.sort((a, b) => a.name <= b.name ? -1 : 1)
-		.map(a => [a.name, cur_n2s(a.opening_debit), cur_n2s(a.opening_credit)]);
+		.map(a => [a.name, cur_n2s(a.balance), cur_n2s(a.balance)]);
 
 	const dn = xs.map(x => x[1].length).reduce((a, b) => Math.max(a, b), 0);
 	const cn = xs.map(x => x[2].length).reduce((a, b) => Math.max(a, b), 0);
@@ -41,7 +55,7 @@ export function do_balances(lg: Ledger) {
 }
 
 export function do_trial_balance(type: string,lg: Ledger) {
-	const build_table = (xs: Entry[]) => {
+	const build_table = (xs: BalanceEntry[]) => {
 		const ys: string[][] = [];
 		let da;
 		let ca;
@@ -61,7 +75,7 @@ export function do_trial_balance(type: string,lg: Ledger) {
 	const get_balances = (lg: Ledger, only_opening: boolean = false) => {
 		const xs = lg.accounts
 			.sort((a, b) => a.name <= b.name ? -1 : 1)
-			.map(x => entry(x.name, x.opening_debit, x.opening_credit));
+			.map(x => balance_entry(x.name, x.amount_type === "D" ? x.value : 0, x.amount_type === "C" ? -x.value : 0));
 
 		if (only_opening) return [xs, [], []];
 
@@ -72,14 +86,20 @@ export function do_trial_balance(type: string,lg: Ledger) {
 				.reduce((a, b) => a.concat(b), [])
 				.filter(y => y.account === x.name);
 
-			const ds = total(xs.filter(y => y.debit > 0).map(y => y.debit));
-			const cs = total(xs.filter(y => y.credit > 0).map(y => y.credit));
+			const ds = total(xs.filter(y => y.value >= 0).map(y => y.value));
+			const cs = total(xs.filter(y => y.value < 0).map(y => -y.value));
 
-			return entry(x.name, ds, cs);
+			return balance_entry(x.name, ds, cs);
 		});
 
 		// closing balances
-		let zs = xs.map((x, i) => { const n = x.debit + ys[i].debit - x.credit - ys[i].credit; return entry(x.account, n > 0 ? n : 0, n <= 0 ? -n : 0); });
+		let zs = xs.map((x, i) => {
+			const value = x.value + ys[i].value;
+			const ds = value >= 0 ? value : 0;
+			const cs = value < 0 ? -value : 0;
+
+			return balance_entry(x.account, ds, cs);
+		});
 		return [xs, ys, zs];
 	};
 

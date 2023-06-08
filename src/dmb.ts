@@ -14,9 +14,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
-import {println, read_text_file} from "./common.ts";
+import {println} from "./common.ts";
 import {parse} from "./parser/parse.ts";
 import {do_balances, do_trial_balance} from "./tools/report.ts";
+import {check} from "./parser/check.ts";
 
 function version() {
 	println('dmb 0.1');
@@ -39,11 +40,11 @@ function help() {
 }
 
 function balances(file: string) {
-	do_balances(parse(file, read_text_file));
+	do_balances(check(parse(file)));
 }
 
 function trial_balance(type: string, file: string) {
-	do_trial_balance(type, parse(file, read_text_file));
+	do_trial_balance(type, check(parse(file)));
 }
 
 export function main(args: string[]) {

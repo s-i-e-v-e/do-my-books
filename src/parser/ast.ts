@@ -50,17 +50,13 @@ export interface UseAccount extends Node {
 	account: string,
 }
 
-//
-const TYPE_CAPITAL = "CAPITAL";
-const TYPE_ASSETS = "ASSETS";
-const TYPE_LIABILITIES = "LIABILITIES";
-const TYPE_INCOMES = "INCOMES";
-const TYPE_EXPENSES = "EXPENSES";
-
+export type AccountType = "CAPITAL" | "ASSETS" | "LIABILITIES" | "INCOMES" | "EXPENSES";
+export type AmountType = "D" | "C";
 export interface Entry {
 	account: string,
-	debit: number,
-	credit: number,
+	amount: number,
+	amount_type: AmountType,
+	value: number
 }
 
 export interface JournalEntry {
@@ -70,9 +66,10 @@ export interface JournalEntry {
 
 export interface Account {
 	name: string,
-	type: string,
-	opening_debit: number,
-	opening_credit: number,
+	type: AccountType,
+	balance: number,
+	amount_type: AmountType,
+	value: number,
 	xs: JournalEntry[],
 }
 
@@ -83,51 +80,44 @@ export interface Ledger {
 	unposted: JournalEntry[],
 }
 
-export function account(name: string, type: string, d: number, c: number): Account {
-	return {name: name, type: type, opening_debit: d, opening_credit: c, xs: []};
+export function entry(name: string, amount: number, amount_type: AmountType): Entry {
+	return {account: name, amount: amount, amount_type: amount_type, value: amount_type === "D" ? amount : -amount};
 }
 
-export function entry(name: string, d: number, c: number): Entry {
-	return {account: name, debit: d, credit: c};
+function to_account_type(account: string) {
+	return account.substring(0, account.indexOf('/')).toUpperCase() as AccountType;
 }
 
-export function fix_account(x: Account) {
-	const e = entry(x.name, x.opening_debit, x.opening_credit);
-	fix_entry(x.type, e);
-	x.opening_debit = e.debit;
-	x.opening_credit = e.credit;
-	return x;
-}
+export function resolve_amount_type(name: string): AmountType {
+	const account_type = to_account_type(name);
 
-export function fix_entry(type: string, e: Entry) {
-	const n = e.debit;
-	switch (type) {
-		case TYPE_ASSETS:
-		case TYPE_EXPENSES: {
-			if (n < 0) {
-				e.debit = 0;
-				e.credit = -n;
-			} else {
-				e.debit = n;
-				e.credit = 0;
-			}
-			break;
+	switch (account_type) {
+		case "ASSETS" :
+		case "EXPENSES": {
+			return "D";
 		}
-		case TYPE_CAPITAL:
-		case TYPE_LIABILITIES:
-		case TYPE_INCOMES: {
-			if (n < 0) {
-				e.debit = -n;
-				e.credit = 0;
-
-			} else {
-				e.debit = 0;
-				e.credit = n;
-			}
-			break;
+		case "CAPITAL":
+		case "LIABILITIES":
+		case "INCOMES": {
+			return "C";
 		}
-		default:
+		default: {
 			throw new Error();
+		}
 	}
-	return e;
+}
+
+export function build_accounts(x: OpenLedger, lg: Ledger) {
+	if (lg.accounts.length) throw new Error('cannot reopen ledger');
+	x.xs.forEach(p => {
+		const a: Account = {
+			name: p.account,
+			type: to_account_type(p.account),
+			balance: p.amount,
+			amount_type: p.amount_type,
+			value: p.amount_type === "D" ? p.amount : -p.amount,
+			xs: [],
+		};
+		lg.accounts.push(a);
+	});
 }

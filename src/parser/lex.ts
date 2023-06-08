@@ -94,7 +94,7 @@ export function read_date(cs: CharStream): Token {
 export function read_number(cs: CharStream): Token {
 	skip_ws(cs);
 	const index = cs.index;
-	cs_next(cs);
+	cs_next(cs); // skip -ve sign or 0-9 or DOT or COMMA
 	while (!cs.eof) {
 		const x = cs_peek(cs);
 		if ((x >= '0' && x <= '9') || x === '.' || x === ',') {
