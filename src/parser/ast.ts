@@ -102,7 +102,7 @@ export function resolve_amount_type(name: string): AmountType {
 			return "C";
 		}
 		default: {
-			throw new Error();
+			throw new Error(`${name}: ${account_type}`);
 		}
 	}
 }
