@@ -110,12 +110,19 @@ export function resolve_amount_type(name: string): AmountType {
 export function build_accounts(x: OpenLedger, lg: Ledger) {
 	if (lg.accounts.length) throw new Error('cannot reopen ledger');
 	x.xs.forEach(p => {
+		const type = to_account_type(p.account);
+		let balance_type = resolve_amount_type(p.account);
+		let balance = p.amount_type == balance_type ? p.amount : -p.amount;
+		if (balance < 0) {
+			balance_type = balance_type === 'D' ? 'C' : 'D';
+			balance = -balance;
+		}
 		const a: Account = {
 			name: p.account,
-			type: to_account_type(p.account),
-			balance: p.amount,
-			amount_type: p.amount_type,
-			value: p.amount_type === "D" ? p.amount : -p.amount,
+			type: type,
+			balance: balance,
+			amount_type: balance_type,
+			value: balance_type === "D" ? balance : -balance,
 			xs: [],
 		};
 		lg.accounts.push(a);

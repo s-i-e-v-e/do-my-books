@@ -50,7 +50,7 @@ function post_entries(lg: Ledger, map: StringMap) {
 }
 
 function check_opening_balances(lg: Ledger) {
-	const sum = total(lg.accounts.map(x => x.amount_type === "D" ? x.balance : -x.balance));
+	const sum = total(lg.accounts.map(x => x.value));
 	if (sum) throw new Error(`opening balance mismatch: ${sum}`);
 }
 

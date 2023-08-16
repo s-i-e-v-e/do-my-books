@@ -75,7 +75,24 @@ export function do_trial_balance(type: string,lg: Ledger) {
 	const get_balances = (lg: Ledger, only_opening: boolean = false) => {
 		const xs = lg.accounts
 			.sort((a, b) => a.name <= b.name ? -1 : 1)
-			.map(x => balance_entry(x.name, x.amount_type === "D" ? x.value : 0, x.amount_type === "C" ? -x.value : 0));
+			.map(x => {
+				let da;
+				let ca;
+				switch (x.amount_type) {
+					case "D": {
+						da = x.value;
+						ca = 0;
+						break;
+					}
+					case "C": {
+						da = 0;
+						ca = -x.value;
+						break;
+					}
+					default: throw new Error();
+				}
+				return balance_entry(x.name, da, ca);
+			});
 
 		if (only_opening) return [xs, [], []];
 
