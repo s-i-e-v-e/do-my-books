@@ -1,0 +1,8 @@
+{
+  "name": "@sieve/do-my-books",
+  "version": "0.1.0",
+  "imports": {
+    "@sieve/nonstd/data": "jsr:@sieve/nonstd@0.1.3/data",
+    "@sieve/nonstd/os": "jsr:@sieve/nonstd@0.1.3/os"
+  }
+}
