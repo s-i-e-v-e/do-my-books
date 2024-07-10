@@ -16,7 +16,7 @@
  **/
 
 import {
-    a2v,
+    a2v, Account, JournalEntry,
     Ledger,
 } from "../parser/ast.ts";
 import {cur_n2s, string_sort} from "../common.ts";
@@ -36,6 +36,93 @@ function balance_entry(account: string, debit: number, credit: number) {
 		credit: credit,
 		value: debit - credit,
 	};
+}
+
+export function do_transactions(lg: Ledger) {
+	interface Range {
+		name: string,
+		start: Date,
+		end: Date,
+	}
+	function to_range(y: number, m: number) {
+		const mm = m < 10 ? `0${m}` : m;
+		//y = m >= 4 ? y : y+1;
+		const current = new Date(`${y}-${mm}-01`);
+		const next = new Date(current.getTime());
+		next.setMonth(m);
+		return {
+			name: ''+mm,
+			start: current,
+			end: next,
+		};
+	}
+
+	const start_year = Number(lg.start_date.substring(0, 4));
+	const start_month = Number(lg.start_date.substring(5, 7));
+	const end_year = Number(lg.end_date.substring(0, 4));
+	const end_month = Number(lg.end_date.substring(5, 7));
+	const months = [] as Range[];
+	for (let i = start_month, j = start_year;;) {
+		months.push(to_range(j, i));
+		let ii = (i + 1) % 13;
+		ii = ii === 0 ? 1 : ii;
+		j = i < ii ? j : j+1;
+		i = ii;
+		if (j === end_year && i > end_month) break;
+	}
+
+	function filter_entries_for_range(xs: JournalEntry[], range: Range) {
+		const start = range.start.getTime();
+		const end = range.end.getTime();
+		return xs.filter(x => {
+			const d = (new Date(x.date)).getTime();
+			return d >= start && d < end;
+		});
+	}
+
+	const xs = lg
+		.accounts
+		.sort((a, b) => string_sort(a.name, b.name))
+		.map(a => {
+			const xs = [];
+			for (const m of months) {
+				xs.push({
+					name: a.name,
+					type: a.type,
+					balance: a.balance,
+					xs: filter_entries_for_range(a.xs, m),
+				});
+			}
+			const ys = get_transactions(xs);
+			return {account: a.name, mos: ys.map(y => ({debit: Math.ceil(y.debit/100), credit: Math.ceil( y.credit/100)}))};
+		});
+
+	console.log('Account\t'+months.map(x => '\t'+x.name).join('\t'));
+	for (const a of xs) {
+		const y = [];
+		y.push(a.account);
+		for (const q of a.mos) {
+			y.push('\t');
+			y.push(q.debit);
+			y.push('\t');
+			y.push(q.credit);
+		}
+		console.log(y.join(''));
+	}
+}
+
+function get_transactions(xs: Account[]) {
+	return xs.map(x => {
+		const xs = x.xs
+			.map(y => y.xs)
+			.reduce((a, b) => a.concat(b), [])
+			.filter(y => y.account === x.name);
+
+		const ds = total(xs.filter(y => a2v(y.amount) >= 0).map(y => a2v(y.amount)));
+		const cs = total(xs.filter(y => a2v(y.amount) < 0).map(y => -a2v(y.amount)));
+
+		return balance_entry(x.name, ds, cs);
+	});
 }
 
 export function do_balances(lg: Ledger) {
@@ -85,17 +172,7 @@ export function do_trial_balance(type: string,lg: Ledger) {
 		if (only_opening) return [xs, [], []];
 
 		// transactions
-		const ys = lg.accounts.map(x => {
-			const xs = x.xs
-				.map(y => y.xs)
-				.reduce((a, b) => a.concat(b), [])
-				.filter(y => y.account === x.name);
-
-			const ds = total(xs.filter(y => a2v(y.amount) >= 0).map(y => a2v(y.amount)));
-			const cs = total(xs.filter(y => a2v(y.amount) < 0).map(y => -a2v(y.amount)));
-
-			return balance_entry(x.name, ds, cs);
-		});
+		const ys = get_transactions(lg.accounts);
 
 		// closing balances
 		let zs = xs.map((x, i) => {

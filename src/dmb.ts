@@ -16,7 +16,7 @@
  **/
 import {println} from "./common.ts";
 import {parse} from "./parser/parse.ts";
-import {do_balances, do_trial_balance} from "./tools/report.ts";
+import {do_balances, do_transactions, do_trial_balance} from "./tools/report.ts";
 import {check} from "./parser/check.ts";
 
 function version() {
@@ -39,6 +39,10 @@ function help() {
 	println('                          otc (opening + transactions + closing)');
 }
 
+function transactions(file: string) {
+	do_transactions(check(parse(file)));
+}
+
 function balances(file: string) {
 	do_balances(check(parse(file)));
 }
@@ -50,6 +54,7 @@ function trial_balance(type: string, file: string) {
 export function main(args: string[]) {
 	const cmd = args[0];
 	switch(cmd) {
+        case "transactions": transactions(args[1]); break;
 		case "balances": balances(args[1]); break;
 		case "tb": trial_balance(args[1], args[2]); break;
 		case "--version":
