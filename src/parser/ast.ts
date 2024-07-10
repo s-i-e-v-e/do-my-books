@@ -52,11 +52,15 @@ export interface UseAccount extends Node {
 
 export type AccountType = "CAPITAL" | "ASSETS" | "LIABILITIES" | "INCOMES" | "EXPENSES";
 export type AmountType = "D" | "C";
+
+export interface Amount {
+	value: number,
+	type: AmountType,
+}
+
 export interface Entry {
 	account: string,
-	amount: number,
-	amount_type: AmountType,
-	value: number
+	amount: Amount,
 }
 
 export interface JournalEntry {
@@ -67,9 +71,7 @@ export interface JournalEntry {
 export interface Account {
 	name: string,
 	type: AccountType,
-	balance: number,
-	amount_type: AmountType,
-	value: number,
+	balance: Amount,
 	xs: JournalEntry[],
 }
 
@@ -80,8 +82,28 @@ export interface Ledger {
 	unposted: JournalEntry[],
 }
 
-export function entry(name: string, amount: number, amount_type: AmountType): Entry {
-	return {account: name, amount: amount, amount_type: amount_type, value: amount_type === "D" ? amount : -amount};
+export function reverse_type(type: AmountType) {
+	return type === 'D' ? 'C' : 'D';
+}
+
+export function a2v(a: Amount) {
+    return  a.type === "D" ? a.value : -a.value;
+}
+
+export function a2a(a: Amount, type: AmountType) {
+	let v = a.type == type ? a.value : -a.value;
+	if (v < 0) {
+		type = reverse_type(type);
+		v = -v;
+	}
+	return {
+		value: v,
+		type: type,
+	};
+}
+
+export function entry(name: string, value: number, type: AmountType): Entry {
+	return {account: name, amount: { value: value, type: type}};
 }
 
 function to_account_type(account: string) {
@@ -110,21 +132,11 @@ export function resolve_amount_type(name: string): AmountType {
 export function build_accounts(x: OpenLedger, lg: Ledger) {
 	if (lg.accounts.length) throw new Error('cannot reopen ledger');
 	x.xs.forEach(p => {
-		const type = to_account_type(p.account);
-		let balance_type = resolve_amount_type(p.account);
-		let balance = p.amount_type == balance_type ? p.amount : -p.amount;
-		if (balance < 0) {
-			balance_type = balance_type === 'D' ? 'C' : 'D';
-			balance = -balance;
-		}
-		const a: Account = {
+		lg.accounts.push({
 			name: p.account,
-			type: type,
-			balance: balance,
-			amount_type: balance_type,
-			value: balance_type === "D" ? balance : -balance,
+			type: to_account_type(p.account),
+			balance: a2a(p.amount, resolve_amount_type(p.account)),
 			xs: [],
-		};
-		lg.accounts.push(a);
+		});
 	});
 }

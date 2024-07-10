@@ -14,13 +14,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
-import {cur_s2n, log_info} from "../common.ts";
+import {cur_s2n, log_info, string_sort} from "../common.ts";
 import {fs_read_utf8 } from "@sieve/nonstd/os";
 
 import {
     Ledger,
     Entry,
-    JournalEntry, build_accounts, resolve_amount_type, entry, OpenLedger,
+    JournalEntry, build_accounts, resolve_amount_type, entry, OpenLedger, reverse_type,
 } from "../parser/ast.ts";
 import {CharacterStream} from "@sieve/nonstd/data";
 import {TokenStream, Token, lex} from "./lex.ts";
@@ -112,8 +112,7 @@ function parse_entries(ts: TokenStream<Token>): Entry[] {
 
         const a = cur_s2n(aa.lexeme);
         const b = bb.lexeme;
-        const amount_type = resolve_amount_type(b);
-        xs.push(entry(b, a, amount_type));
+        xs.push(entry(b, a, resolve_amount_type(b)));
 
         if (ts.eof() || ts.peek().type !== "NUMBER") {
             break;
@@ -132,7 +131,7 @@ function parse_journal_entry(ts: TokenStream<Token>, lg: Ledger, current: Curren
     };
 
     if (current.account) {
-        xs.forEach(e => add_je({date: current.date, xs: [e, entry(current.account, e.amount, e.amount_type === "D" ? "C" : "D")]}));
+        xs.forEach(e => add_je({date: current.date, xs: [e, entry(current.account, e.amount.value, reverse_type(e.amount.type))]}));
     }
     else {
         add_je({date: current.date, xs: xs});
@@ -199,7 +198,7 @@ export function parse(file: string): Ledger {
 
     do_parse(file , lg);
 
-    lg.unposted = lg.unposted.sort((a, b) => a.date <= b.date ? -1 : 1);
+    lg.unposted = lg.unposted.sort((a, b) => string_sort(a.date, b.date));
     const last = lg.unposted[lg.unposted.length-1];
     lg.end_date = last ? last.date : lg.end_date;
     return lg;

@@ -48,6 +48,7 @@ export function println(x: string) {
 	console.log(x);
 }
 
+export const string_sort = (a: string, b: string) => a <= b ? -1 : 1;
 export let log_level = 0;
 export function log_info(x: string) {
 	if (log_level > 0) println(x);

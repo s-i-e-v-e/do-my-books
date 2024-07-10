@@ -16,9 +16,10 @@
  **/
 
 import {
-	Ledger,
+    a2v,
+    Ledger,
 } from "../parser/ast.ts";
-import {cur_n2s} from "../common.ts";
+import {cur_n2s, string_sort} from "../common.ts";
 import {total} from "../parser/check.ts";
 
 interface BalanceEntry {
@@ -39,8 +40,8 @@ function balance_entry(account: string, debit: number, credit: number) {
 
 export function do_balances(lg: Ledger) {
 	const xs = lg.accounts
-		.sort((a, b) => a.name <= b.name ? -1 : 1)
-		.map(a => [a.name, cur_n2s(a.balance), cur_n2s(a.balance)]);
+		.sort((a, b) => string_sort(a.name, b.name))
+		.map(a => [a.name, cur_n2s(a2v(a.balance)), cur_n2s(a2v(a.balance))]);
 
 	const dn = xs.map(x => x[1].length).reduce((a, b) => Math.max(a, b), 0);
 	const cn = xs.map(x => x[2].length).reduce((a, b) => Math.max(a, b), 0);
@@ -76,21 +77,8 @@ export function do_trial_balance(type: string,lg: Ledger) {
 		const xs = lg.accounts
 			.sort((a, b) => a.name <= b.name ? -1 : 1)
 			.map(x => {
-				let da;
-				let ca;
-				switch (x.amount_type) {
-					case "D": {
-						da = x.value;
-						ca = 0;
-						break;
-					}
-					case "C": {
-						da = 0;
-						ca = -x.value;
-						break;
-					}
-					default: throw new Error();
-				}
+				let da = x.balance.type === "D" ? a2v(x.balance) : 0
+				let ca = x.balance.type === "C" ? -a2v(x.balance) : 0
 				return balance_entry(x.name, da, ca);
 			});
 
@@ -103,8 +91,8 @@ export function do_trial_balance(type: string,lg: Ledger) {
 				.reduce((a, b) => a.concat(b), [])
 				.filter(y => y.account === x.name);
 
-			const ds = total(xs.filter(y => y.value >= 0).map(y => y.value));
-			const cs = total(xs.filter(y => y.value < 0).map(y => -y.value));
+			const ds = total(xs.filter(y => a2v(y.amount) >= 0).map(y => a2v(y.amount)));
+			const cs = total(xs.filter(y => a2v(y.amount) < 0).map(y => -a2v(y.amount)));
 
 			return balance_entry(x.name, ds, cs);
 		});

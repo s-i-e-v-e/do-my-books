@@ -15,9 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  **/
 import {
-	Entry,
-	Ledger,
-	entry,
+    Entry,
+    Ledger,
+    entry,
+    a2v,
 } from './ast.ts'
 
 export function total(xs: number[]) {
@@ -35,7 +36,7 @@ function post_entries(lg: Ledger, map: StringMap) {
 		// check accounts
 		je.xs.forEach(e => resolve_account(lg, e.account));
 
-		const sum = total(je.xs.map(x => x.value));
+		const sum = total(je.xs.map(x => a2v(x.amount)));
 		if (sum) throw new Error(`Unbalanced entry on ${je.date}. Diff: ${sum}`);
 
 		const set = new Set();
@@ -50,7 +51,7 @@ function post_entries(lg: Ledger, map: StringMap) {
 }
 
 function check_opening_balances(lg: Ledger) {
-	const sum = total(lg.accounts.map(x => x.value));
+	const sum = total(lg.accounts.map(x => a2v(x.balance)));
 	if (sum) throw new Error(`opening balance mismatch: ${sum}`);
 }
 
@@ -61,10 +62,10 @@ function check_closing_balances(lg: Ledger) {
 			.reduce((a, b) => a.concat(b), [])
 			.filter(y => y.account === x.name);
 
-		return entry(x.name, x.value + total(xs.map(y => y.value)), "D");
+		return entry(x.name, a2v(x.balance) + total(xs.map(y => a2v(y.amount))), "D");
 	});
 
-	const sum = total(ys.map(x => x.amount));
+	const sum = total(ys.map(x => x.amount.value));
 	if (sum) throw new Error(`closing balance mismatch: ${sum}`);
 }
 
